@@ -1,0 +1,597 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Match the Lines</title>
+  <link href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@300;400;600&family=Yeseva+One&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      /* requested palette + card width */
+      --olive:#5e5d2d;
+      --gold:#f2be00;
+      --maroon:#982727;
+      --white:#ffffff;
+      --brown:#744d26;
+      --card-w:900px;
+
+      /* compatibility mapping (used by layout rules) */
+      --bg: #F6F4E8;                 /* warm neutral background */
+      --card: var(--white);
+      --accent: var(--maroon);
+      --accent-2: var(--gold);
+      --muted: #7b735a;
+      --glass: rgba(255,255,252,0.6);
+      --shadow: 0 10px 30px rgba(11,8,6,0.06);
+      --radius:16px;
+
+      /* line color for SVG */
+      --line: var(--maroon);
+      --line-2: rgba(152,39,39,0.12);
+    }
+
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;font-family:'Josefin Sans',system-ui,Segoe UI,Roboto,Arial; background: linear-gradient(135deg,var(--bg) 0%, #FFF9E0 100%); color:#0f172a;-webkit-font-smoothing:antialiased}
+
+    .wrap{
+      max-width: var(--card-w);
+      margin:24px auto;
+      padding:22px;
+      border-radius:var(--radius);
+      backdrop-filter: blur(6px);
+      position:relative;
+      background: linear-gradient(180deg, rgba(255,255,255,0.85), rgba(250,249,244,0.55));
+      box-shadow: var(--shadow);
+      width: calc(100% - 32px);
+      overflow: visible;
+    }
+
+    header{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+    h1{font-family:'Yeseva One',serif;margin:0;font-size:30px;color:var(--accent);letter-spacing:0.3px}
+    p.lead{margin:0;color:var(--muted);font-size:13px}
+
+    /* board: default two columns side-by-side */
+    .board{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:16px;
+      position:relative;
+      margin-top:8px;
+    }
+    .panel{background:var(--card);border-radius:12px;padding:12px;box-shadow:var(--shadow);border:1px solid rgba(0,0,0,0.02)}
+    .left, .right{min-height:300px}
+
+    .items{display:flex;flex-direction:column;gap:10px}
+    /* base card (left items) */
+    .card{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      padding:10px;
+      border-radius:10px;
+      background:linear-gradient(180deg,var(--glass),#fff);
+      cursor:pointer;
+      border:2px solid rgba(0,0,0,0.04);
+      transition:transform .14s ease, box-shadow .14s ease, background .14s ease, border-color .14s ease;
+      position:relative;
+      min-height:56px;
+    }
+    .card:hover{ transform:translateY(-6px); box-shadow:0 18px 40px rgba(11,8,6,0.06) }
+    .card .icon{width:48px;height:48px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:700}
+    .worm{display:flex;flex-direction:column;gap:4px;font-weight:700;font-size:15px;color:#111}
+    .hint{font-size:12px;color:var(--muted);margin-top:4px}
+
+    .targets{display:flex;flex-direction:column;gap:10px}
+    .target{
+      padding:10px 12px;
+      border-radius:10px;
+      border:2px solid rgba(0,0,0,0.04);
+      min-height:56px;
+      display:flex;
+      align-items:center;
+      gap:10px;
+      background:linear-gradient(90deg, rgba(255,255,255,0.98), rgba(255,250,240,0.98));
+      transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+    }
+    .target:hover{ transform:translateY(-6px); box-shadow:0 18px 36px rgba(11,8,6,0.06); border-color: var(--line-2) }
+    .target p{margin:0;font-size:13px;color:#0f172a}
+
+    .tag{
+      min-width:34px;
+      height:34px;
+      border-radius:8px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-weight:700;
+      background: linear-gradient(180deg, #fff, rgba(255,250,240,0.95));
+      border:1px solid rgba(116,77,38,0.06);
+      color:var(--brown);
+      box-shadow: 0 6px 12px rgba(116,77,38,0.03);
+      font-size:13px;
+    }
+
+    /* Make left column cards look & behave like the right-side targets */
+    .panel.left .card{
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 2px solid rgba(0,0,0,0.04);
+      min-height: 56px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: linear-gradient(90deg, rgba(255,255,255,0.98), rgba(255,250,240,0.98));
+      transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease, background .14s ease;
+      cursor: pointer;
+      background-clip: padding-box;
+    }
+
+    .panel.left .card:hover{
+      transform: translateY(-6px);
+      box-shadow: 0 18px 36px rgba(11,8,6,0.06);
+      border-color: rgba(152,39,39,0.12);
+      background: linear-gradient(90deg, rgba(255,250,248,1), rgba(255,245,244,1));
+    }
+
+    .panel.left .card.selected{
+      outline: 3px solid rgba(152,39,39,0.12);
+      box-shadow: 0 12px 30px rgba(152,39,39,0.06);
+    }
+
+    .panel.left .card .tag{ margin-left:auto; }
+
+    /* SVG overlay covers .board and sits behind content */
+    .svg-overlay{position:absolute;inset:0;pointer-events:none;z-index:5}
+    .svg-overlay svg{width:100%;height:100%}
+
+    /* controls */
+    .controls{display:flex;gap:8px;margin-top:12px;justify-content:center}
+    button{
+      border:0;
+      padding:8px 12px;
+      border-radius:10px;
+      font-weight:700;
+      cursor:pointer;
+      background:var(--accent);
+      color:var(--white);
+      box-shadow:0 8px 18px rgba(152,39,39,0.12);
+      transition: transform .10s ease, box-shadow .10s ease, opacity .10s ease;
+      font-size:13px;
+    }
+    button:active{ transform: translateY(1px) }
+    button.alt{
+      background: linear-gradient(90deg,var(--accent-2), #ffd25a);
+      color:#111;
+      box-shadow: 0 8px 18px rgba(242,190,0,0.12);
+      border: none;
+    }
+
+    .small{font-size:12px;color:var(--muted)}
+
+    /* responsive adjustments (desktop -> tablet) */
+    @media (max-width:980px){
+      .wrap{padding:16px}
+      h1{font-size:28px}
+    }
+
+    /*
+      IMPORTANT: keep the two columns side-by-side on small screens.
+      On narrow viewports we switch the board to a horizontal-scrolling two-column layout
+      so the match columns stay right-left instead of stacking above-below.
+    */
+    @media (max-width:780px){
+      /* convert grid into horizontally scrollable columns */
+      .board{
+        display:grid;
+        grid-auto-flow:column;
+        grid-auto-columns: minmax(260px, 1fr);
+        gap:12px;
+        overflow-x:auto;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom:6px; /* allow space for touch scroll */
+      }
+      /* ensure panels have a guaranteed min width for comfortable touch targets */
+      .panel{ min-width: 260px; flex: 0 0 auto; }
+
+      /* slight size reductions */
+      .wrap{margin:12px auto;padding:12px}
+      .left, .right{min-height:220px}
+      h1{font-size:22px}
+      .worm{font-size:13px}
+      .target p{font-size:12px}
+      .card{min-height:50px;padding:8px}
+      button{font-size:12px;padding:7px 10px}
+      .panel.left .card .tag{ margin-left:12px }
+    }
+
+    /* deeper mobile - further reduce fonts and spacing */
+    @media (max-width:480px){
+      :root{ --card-w: calc(100% - 24px); --radius:12px; --shadow: 0 8px 20px rgba(11,8,6,0.06); }
+      .wrap{padding:10px;border-radius:12px}
+      header{gap:8px}
+      h1{font-size:18px}
+      p.lead{font-size:11px}
+      .card{padding:8px;border-radius:10px;min-height:44px}
+      .worm{font-size:12px}
+      .tag{min-width:28px;height:28px;font-size:12px;border-radius:8px}
+      .target{padding:8px 10px;min-height:44px}
+      .targets, .items{gap:8px}
+      .controls{gap:6px}
+      button{padding:7px 9px;font-size:12px;border-radius:10px}
+      footer{font-size:11px}
+      .custom-alert-box{min-width:240px;padding:12px;border-radius:12px}
+      .custom-alert-title{font-size:15px}
+
+      /* When viewport is very narrow, reduce the panel min width so both columns still show reasonably */
+      .board{ grid-auto-columns: minmax(220px, 1fr); }
+      .panel{ min-width:220px; }
+    }
+
+    /* subtle utilities */
+    .selected{outline:3px solid rgba(152,39,39,0.12);}
+
+    /* custom alert styles — variables from page are used */
+    .custom-alert-overlay{
+      position:fixed;
+      inset:0;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background:rgba(11,8,6,0.35);
+      z-index:9999;
+      opacity:0;
+      pointer-events:none;
+      transition:opacity .18s ease;
+      -webkit-backdrop-filter: blur(4px);
+              backdrop-filter: blur(4px);
+    }
+    .custom-alert-overlay.open{
+      opacity:1;
+      pointer-events:auto;
+    }
+    .custom-alert-box{
+      min-width:320px;
+      max-width:90%;
+      background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(255,250,248,0.98));
+      border-radius:14px;
+      padding:18px 18px;
+      box-shadow: 0 18px 50px rgba(11,8,6,0.12);
+      border: 1px solid rgba(16,24,40,0.04);
+      text-align:left;
+      transform: translateY(8px);
+      transition: transform .18s cubic-bezier(.2,.9,.2,1), opacity .18s ease;
+    }
+    .custom-alert-overlay.open .custom-alert-box{ transform: translateY(0); }
+
+    .custom-alert-title{
+      font-weight:700;
+      font-family:'Yeseva One', serif;
+      color:var(--maroon);
+      font-size:18px;
+      margin:0 0 8px 0;
+    }
+    .custom-alert-message{
+      color:#0f172a;
+      font-size:14px;
+      line-height:1.35;
+      margin-bottom:14px;
+      white-space:pre-wrap;
+    }
+    .custom-alert-actions{ display:flex; gap:10px; justify-content:flex-end; }
+    .custom-alert-btn{
+      padding:8px 12px;
+      border-radius:10px;
+      border:0;
+      font-weight:700;
+      cursor:pointer;
+    }
+    .custom-alert-btn.ok{
+      background:var(--maroon);
+      color:var(--white);
+      box-shadow:0 8px 18px rgba(152,39,39,0.12);
+    }
+    .custom-alert-btn.cancel{
+      background:transparent;
+      border:1px solid rgba(16,24,40,0.06);
+      color:#111;
+    }
+
+  </style>
+</head>
+<body>
+  <div class="wrap" role="main">
+    <header>
+      <h1>Match the Lines</h1>
+      <div style="flex:1"></div>
+      <div style="text-align:right">
+        <p class="lead small">Tap a worm on the left, then its matching description on the right.</p>
+      </div>
+    </header>
+
+    <div class="board" id="board">
+      <div class="panel left" aria-label="Worms list">
+        <h3 style="margin-top:0">Worms</h3>
+        <div class="items" id="items" role="list">
+          <!-- items injected by JS -->
+        </div>
+      </div>
+
+      <div class="panel right" aria-label="Descriptions list">
+        <h3 style="margin-top:0">Descriptions</h3>
+        <div class="targets" id="targets" role="list">
+          <!-- targets injected by JS -->
+        </div>
+      </div>
+
+      <div class="svg-overlay" id="svgOverlay" aria-hidden="true">
+        <svg id="svg"></svg>
+      </div>
+    </div>
+
+    <div class="controls" style="justify-content:center;margin-top:14px" role="toolbar" aria-label="Game controls">
+      <button id="check">Check Answers</button>
+      <button class="alt" id="reset">Reset</button>
+      <button class="alt" id="shuffle">Shuffle</button>
+    </div>
+
+    <footer style="margin-top:14px;text-align:center" class="small">Abimanyu Laksana Wicaksono</footer>
+  </div>
+
+  <script>
+    // Data: 5 worms, each with one-sentence trait (in English)
+    const data = [
+      {id:'w1', name:'Tapeworm', trait:'Long segmented body that can reach several meters.'},
+      {id:'w2', name:'Roundworm', trait:'Cylindrical, unsegmented body and often migrates through tissues.'},
+      {id:'w3', name:'Hookworm', trait:'Small, curved mouthparts used to attach to the intestinal wall.'},
+      {id:'w4', name:'Whipworm', trait:'Thin front end and thicker rear, resembling a whip.'},
+      {id:'w5', name:'Threadworm', trait:'Very small and slender, commonly causes perianal itching.'},
+    ];
+
+    // helpers
+    function shuffle(a){for(let i=a.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+
+    const itemsEl = document.getElementById('items');
+    const targetsEl = document.getElementById('targets');
+    const svg = document.getElementById('svg');
+    const board = document.getElementById('board');
+
+    let connections = {}; // {sourceId: targetId}
+    let currentSource = null;
+
+    function render(shuffleTargets=false){
+      itemsEl.innerHTML=''; targetsEl.innerHTML=''; svg.innerHTML=''; connections={}; currentSource=null;
+      const leftList = [...data];
+      const rightList = shuffleTargets? shuffle([...data]) : [...data];
+
+      // left items
+      leftList.forEach((d,i)=>{
+        const div = document.createElement('div'); div.className='card'; div.id = d.id; div.dataset.name = d.name;
+        div.innerHTML = `
+          <div style="display:flex;align-items:center;gap:12px;flex:1">
+            <div style='flex:1'>
+              <div class='worm'>${d.name}</div>
+            </div>
+            <div class='tag'>${i+1}</div>
+          </div>
+        `;
+        itemsEl.appendChild(div);
+        div.setAttribute('role','listitem');
+        div.setAttribute('tabindex','0');
+        div.addEventListener('click', ()=> selectSource(d.id));
+        div.addEventListener('keydown', (e)=>{ if(e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectSource(d.id); }});
+      });
+
+      // right targets
+      rightList.forEach((d,i)=>{
+        const t = document.createElement('div'); t.className='target'; t.id = 't-'+d.id; t.dataset.id = d.id;
+        t.innerHTML = `<div class='tag'>${i+1}</div><p>${d.trait}</p>`;
+        targetsEl.appendChild(t);
+        t.setAttribute('role','listitem');
+        t.setAttribute('tabindex','0');
+        t.addEventListener('click', ()=> selectTarget(d.id));
+        t.addEventListener('keydown', (e)=>{ if(e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectTarget(d.id); }});
+      });
+
+      // small timeout to ensure layout done
+      setTimeout(updateAnchorsAndDraw, 40);
+    }
+
+    function updateAnchorsAndDraw(){
+      // compute anchors: right edge of cards and left edge of targets relative to board
+      svg.innerHTML = '';
+      const boardRect = board.getBoundingClientRect();
+
+      data.forEach(d=>{
+        const srcEl = document.getElementById(d.id);
+        const trgEl = document.getElementById('t-'+d.id);
+        if(srcEl){
+          const r = srcEl.getBoundingClientRect();
+          const x = r.right - boardRect.left;
+          const y = r.top + r.height/2 - boardRect.top;
+          srcEl.dataset.ax = x; srcEl.dataset.ay = y;
+        }
+        if(trgEl){
+          const r2 = trgEl.getBoundingClientRect();
+          const x2 = r2.left - boardRect.left;
+          const y2 = r2.top + r2.height/2 - boardRect.top;
+          trgEl.dataset.ax = x2; trgEl.dataset.ay = y2;
+        }
+      });
+
+      drawConnections();
+    }
+
+    function selectSource(id){
+      // highlight selection
+      document.querySelectorAll('.card').forEach(c=> c.classList.remove('selected'));
+      const el = document.getElementById(id); if(!el) return;
+      el.classList.add('selected');
+      currentSource = id;
+    }
+
+    function selectTarget(targetId){
+      if(!currentSource) return;
+      connections[currentSource] = targetId;
+      const srcEl = document.getElementById(currentSource); if(srcEl) srcEl.classList.remove('selected');
+      currentSource = null;
+      drawConnections();
+    }
+
+    function drawConnections(){
+      svg.innerHTML = '';
+      const boardRect = board.getBoundingClientRect();
+
+      // stroke thickness responsive to viewport width
+      const strokeWidth = window.innerWidth < 480 ? 3 : 5;
+      const circleR = window.innerWidth < 480 ? 5 : 7;
+
+      Object.keys(connections).forEach((srcId,i)=>{
+        const trgId = connections[srcId];
+        const srcEl = document.getElementById(srcId); const trgEl = document.getElementById('t-'+trgId);
+        if(!srcEl || !trgEl) return;
+        const x1 = parseFloat(srcEl.dataset.ax); const y1 = parseFloat(srcEl.dataset.ay);
+        const x2 = parseFloat(trgEl.dataset.ax); const y2 = parseFloat(trgEl.dataset.ay);
+        if(Number.isNaN(x1) || Number.isNaN(x2)) return;
+
+        const controlX1 = x1 + Math.max(60, Math.abs(x2-x1)/2);
+        const controlX2 = x2 - Math.max(60, Math.abs(x2-x1)/2);
+        const offset = (i%2===0)? 6 : -6;
+        const d = `M ${x1} ${y1} C ${controlX1} ${y1 + offset} ${controlX2} ${y2 - offset} ${x2} ${y2}`;
+
+        const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+        path.setAttribute('d', d);
+        path.setAttribute('stroke', getComputedStyle(document.documentElement).getPropertyValue('--line') || 'rgba(152,39,39,0.95)');
+        path.setAttribute('stroke-width', String(strokeWidth));
+        path.setAttribute('fill','none');
+        path.setAttribute('stroke-linecap','round');
+        path.setAttribute('stroke-linejoin','round');
+        path.setAttribute('opacity','0.95');
+        svg.appendChild(path);
+
+        const circ = document.createElementNS('http://www.w3.org/2000/svg','circle');
+        circ.setAttribute('cx', x2); circ.setAttribute('cy', y2); circ.setAttribute('r', String(circleR));
+        circ.setAttribute('fill',getComputedStyle(document.documentElement).getPropertyValue('--white').trim() || '#fff');
+        circ.setAttribute('stroke', getComputedStyle(document.documentElement).getPropertyValue('--maroon') || '#982727');
+        circ.setAttribute('stroke-width',Math.max(2, Math.round(strokeWidth/1.5)));
+        svg.appendChild(circ);
+      });
+    }
+
+    function check(){
+      let correct = 0; const total = data.length;
+      document.querySelectorAll('.card').forEach(c=>{c.style.boxShadow='';});
+      Object.keys(connections).forEach(srcId=>{
+        const trgId = connections[srcId];
+        const card = document.getElementById(srcId);
+        if(!card) return;
+        if(srcId === trgId){ card.style.boxShadow = '0 10px 30px rgba(34,197,94,0.10)'; correct++; }
+        else { card.style.boxShadow = '0 10px 30px rgba(255,99,132,0.08)'; }
+      });
+      // use custom alert which overrides window.alert
+      alert(`You got ${correct} of ${total} correct (${Math.round((correct/total)*100)}%).`);
+    }
+
+    function reset(){ connections={}; currentSource=null; svg.innerHTML=''; document.querySelectorAll('.card').forEach(c=>{c.style.boxShadow='';c.classList.remove('selected');}); }
+
+    document.getElementById('shuffle').addEventListener('click', ()=>{ render(true); });
+    document.getElementById('reset').addEventListener('click', ()=>{ reset(); });
+    document.getElementById('check').addEventListener('click', ()=>{ check(); });
+
+    render(true);
+
+    // keep anchors updated
+    const ro = new ResizeObserver(()=>{ updateAnchorsAndDraw(); });
+    ro.observe(document.body);
+    window.addEventListener('scroll', ()=> updateAnchorsAndDraw());
+    window.addEventListener('orientationchange', ()=> setTimeout(updateAnchorsAndDraw, 80));
+    window.addEventListener('resize', ()=> setTimeout(updateAnchorsAndDraw, 40));
+
+  </script>
+
+  <!-- Custom alert markup + script (inserted as requested; does not modify other code) -->
+  <div id="customAlertOverlay" class="custom-alert-overlay" aria-hidden="true" role="dialog" aria-modal="true" style="display:none">
+    <div class="custom-alert-box" role="document" aria-labelledby="customAlertTitle" aria-describedby="customAlertMessage">
+      <h3 id="customAlertTitle" class="custom-alert-title">Notice</h3>
+      <div id="customAlertMessage" class="custom-alert-message">Message</div>
+      <div class="custom-alert-actions">
+        <button id="customAlertOk" class="custom-alert-btn ok">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function(){
+      const overlay = document.getElementById('customAlertOverlay');
+      const msgEl = document.getElementById('customAlertMessage');
+      const titleEl = document.getElementById('customAlertTitle');
+      const okBtn = document.getElementById('customAlertOk');
+
+      // queue to safely show alerts called in quick succession
+      const queue = [];
+      let showing = false;
+
+      function openModal(text, title='Notice'){
+        queue.push({text, title});
+        if(!showing) showNext();
+      }
+
+      function showNext(){
+        if(queue.length === 0){
+          showing = false;
+          return;
+        }
+        showing = true;
+        const {text, title} = queue.shift();
+        titleEl.textContent = title || 'Notice';
+        msgEl.textContent = text === undefined || text === null ? '' : String(text);
+        overlay.style.display = 'flex';
+        // small delay to allow CSS transitions
+        requestAnimationFrame(()=> overlay.classList.add('open'));
+        okBtn.focus();
+      }
+
+      function closeModal(){
+        overlay.classList.remove('open');
+        // allow transition to finish
+        setTimeout(()=>{
+          overlay.style.display = 'none';
+          showNext();
+        }, 180);
+      }
+
+      // click OK or press Enter/Escape to close
+      okBtn.addEventListener('click', closeModal);
+      overlay.addEventListener('click', (e)=>{
+        if(e.target === overlay) closeModal(); // click outside to close
+      });
+      window.addEventListener('keydown', (e)=>{
+        if(overlay.style.display !== 'none'){
+          if(e.key === 'Escape' || e.key === 'Enter'){
+            e.preventDefault();
+            closeModal();
+          }
+        }
+      });
+
+      // override window.alert (non-blocking)
+      window.alert = function(msg){
+        openModal(msg, 'Result');
+      };
+
+      // also provide a promise-based API if needed elsewhere
+      window.customAlert = function(msg, title){
+        return new Promise(resolve=>{
+          // override okBtn temporarily to resolve promise
+          const handler = ()=>{
+            okBtn.removeEventListener('click', handler);
+            resolve();
+          };
+          openModal(msg, title);
+          okBtn.addEventListener('click', handler);
+        });
+      };
+
+    })();
+  </script>
+</body>
+</html>

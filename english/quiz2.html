@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Worm Prevention — Snake Quiz</title>
+  <link href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@300;400;600&family=Yeseva+One&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      /* same palette as requested */
+      --olive:#5e5d2d;
+      --gold:#f2be00;
+      --maroon:#982727;
+      --white:#ffffff;
+      --brown:#744d26;
+      --bg: #F6F4E8;
+      --card: var(--white);
+      --accent: var(--maroon);
+      --accent-2: var(--gold);
+      --muted: #7b735a;
+      --glass: rgba(255,255,252,0.6);
+      --shadow: 0 8px 22px rgba(11,8,6,0.06);
+      --radius:10px;
+      --grid-size:12; /* cells per side */
+    }
+
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;font-family:'Josefin Sans',system-ui,Segoe UI,Roboto,Arial; background: linear-gradient(135deg,var(--bg) 0%, #FFF9E0 100%); color:#0f172a;-webkit-font-smoothing:antialiased}
+
+    /* make general font a bit smaller */
+    body{font-size:13px}
+
+    /* trimmed container so less vertical space */
+    .wrap{max-width:1000px;margin:8px auto;padding:8px;border-radius:var(--radius);backdrop-filter: blur(4px);position:relative;background: linear-gradient(180deg, rgba(255,255,255,0.95), rgba(250,249,244,0.6));box-shadow: var(--shadow);width: calc(100% - 16px);}
+
+    header{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+    h1{font-family:'Yeseva One',serif;margin:0;font-size:16px;color:var(--accent);letter-spacing:0.3px}
+    p.lead{margin:0;color:var(--muted);font-size:11px}
+
+    /* compact two-column layout: game left, questions right */
+    .main{display:grid;grid-template-columns: 1fr 200px;gap:8px;align-items:start}
+
+    .board-panel{background:var(--card);border-radius:10px;padding:8px;box-shadow:var(--shadow);border:1px solid rgba(0,0,0,0.02);display:flex;flex-direction:column;align-items:center}
+
+    /* canvas now stretches to fill its parent width (keeps square sizing via JS) */
+    #gameCanvas{background:linear-gradient(180deg, rgba(255,250,248,1), rgba(255,245,244,1));border-radius:10px;border:1px solid rgba(116,77,38,0.04);touch-action:none;display:block;width:100%;height:auto;max-width:none}
+
+    .info-panel{background:linear-gradient(180deg, rgba(255,255,255,0.98), rgba(255,250,248,0.98));border-radius:10px;padding:8px;border:1px solid rgba(0,0,0,0.04);font-size:13px}
+    .qhead{font-weight:700;color:var(--olive);margin-bottom:6px;font-size:12px}
+    .qtext{font-weight:700;margin-bottom:8px;font-size:13px}
+    .legend{display:flex;flex-direction:column;gap:6px}
+    .legend-item{display:flex;gap:8px;align-items:center;background:linear-gradient(180deg,#fff,rgba(255,250,240,0.98));padding:6px;border-radius:8px;border:1px solid rgba(16,24,40,0.04);font-size:12px}
+    .num{width:28px;height:28px;border-radius:8px;background:var(--glass);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px}
+
+    .controls{display:flex;gap:8px;justify-content:center;margin-top:6px}
+    .btn{border:0;padding:6px 8px;border-radius:8px;font-weight:700;cursor:pointer;background:var(--accent);color:var(--white);box-shadow:0 8px 18px rgba(152,39,39,0.12);}    
+
+    @media (max-width:880px){
+      .main{grid-template-columns: 1fr 180px}
+    }
+
+    @media (max-width:600px){
+      /* phones: make the right column slimmer and canvas smaller to avoid overflow in landscape */
+      .main{grid-template-columns: 1fr 160px}
+      .info-panel{padding:6px}
+      .legend-item{padding:6px}
+      .num{width:26px;height:26px}
+      h1{font-size:15px}
+    }
+
+    @media (orientation:landscape) and (max-width:820px){
+      /* tighter fits for mobile landscape */
+      .wrap{padding:6px}
+      /* canvas is still 100% of parent; JS will set the logical backing size */
+    }
+
+    /* toast */
+    .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:14px;background:var(--maroon);color:#fff;padding:8px 12px;border-radius:10px;box-shadow:0 10px 24px rgba(11,8,6,0.12);opacity:0;pointer-events:none;transition:opacity .18s ease,bottom .18s ease}
+    .toast.show{opacity:1;pointer-events:auto;bottom:22px}
+
+  </style>
+</head>
+<body>
+  <div class="wrap" role="main">
+    <header>
+      <h1>Worm Game</h1>
+      <div style="flex:1"></div>
+      <div style="text-align:right">
+        <p class="lead small">Use arrow keys or swipe to steer the worm. Tap the numbered food to select that option.</p>
+      </div>
+    </header>
+
+    <div class="main">
+      <div class="board-panel">
+        <canvas id="gameCanvas" width="360" height="360" aria-label="Game board"></canvas>
+        <div class="controls" style="margin-top:8px">
+          <button class="btn" id="resetBtn">Reset</button>
+        </div>
+      </div>
+
+      <aside class="info-panel" aria-live="polite">
+        <div class="qhead">Question</div>
+        <div class="qtext" id="question">Question will appear here</div>
+        <div class="qhead" style="margin-top:8px">Options</div>
+        <div class="legend" id="legend"></div>
+
+      </aside>
+    </div>
+
+    <footer style="margin-top:8px;text-align:center" class="small">Abimanyu Laksana Wicaksono</footer>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    /* Questions about daily activities to prevent worm infections */
+    const QUESTIONS = [
+      { q: 'What daily habit helps prevent worm infections before meals?', opts: ['Wash hands with soap and water','Rinse with cold water only','Wear gloves','Avoid touching food'], correct: 0 },
+      { q: 'Which practice reduces risk from soil-transmitted worms?', opts: ['Wear shoes outdoors','Sit on the ground barefoot','Water plants with untreated water','Share food'], correct: 0 },
+      { q: 'Which is safe for preventing food-borne parasites?', opts: ['Cook meat thoroughly','Eat raw meat sometimes','Only wash vegetables quickly','Store food at room temperature'], correct: 0 },
+      { q: 'A daily habit that prevents threadworm spread in families is:', opts: ['Wash bedding and undergarments regularly','Keep windows closed','Use perfume','Avoid washing hands'], correct: 0 },
+      { q: 'How to reduce risk of hookworm infection?', opts: ['Use latrines and avoid open defecation','Swim in muddy water','Eat uncooked fish','Skip vaccination'], correct: 0 },
+      { q: 'Which action prevents tapeworm infection?', opts: ['Avoid eating raw/undercooked pork or beef','Share knives','Eat food from unknown sources','Do not wash hands'], correct: 0 },
+      { q: 'Best daily habit for child hygiene to avoid worms:', opts: ['Trim nails and bathe regularly','Let children play without washing','Avoid toothpaste','Never wash toys'], correct: 0 }
+    ];
+
+    // Game variables
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    let gridSize = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--grid-size')) || 12;
+    let cellSize = Math.floor(canvas.width / gridSize);
+
+    let snake = [{x:4,y:6},{x:3,y:6},{x:2,y:6}];
+    let dir = {x:1,y:0};
+    let nextDir = {x:1,y:0};
+    let foods = []; // {x,y,label,optIndex}
+    let currentQ = 0;
+    let score = 0; let lives = 3; let paused = false;
+    let tickInterval = 160; // ms
+    let loopId = null;
+
+    // DOM
+    const questionEl = document.getElementById('question');
+    const legendEl = document.getElementById('legend');
+    const toast = document.getElementById('toast');
+
+    function resizeCanvas(){
+      // Make canvas width equal to its parent container's inner width, keep square, and fit vertically
+      const parentRect = canvas.parentElement.getBoundingClientRect();
+      const parentInnerW = Math.max(160, parentRect.width - 0); // available width inside the panel
+      const viewportH = window.innerHeight;
+      const availableH = Math.max(160, viewportH - 120);
+      const size = Math.min(parentInnerW, availableH);
+
+      // high-DPI backing store
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      // set CSS size to fill parent (square)
+      canvas.style.width = size + 'px';
+      canvas.style.height = size + 'px';
+      // set backing store size
+      canvas.width = Math.round(size * dpr);
+      canvas.height = Math.round(size * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      // logical cell size
+      cellSize = Math.floor(size / gridSize);
+      draw();
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+    window.addEventListener('orientationchange', ()=> setTimeout(resizeCanvas, 120));
+    // initial
+    resizeCanvas();
+
+    function showToast(msg){ toast.textContent = msg; toast.classList.add('show'); setTimeout(()=> toast.classList.remove('show'), 1200); }
+
+    function placeFoodsForQuestion(qIndex){
+      foods = [];
+      const q = QUESTIONS[qIndex];
+      const opts = [...q.opts];
+      const labels = opts.map((o,i)=>i);
+      shuffle(labels);
+      const freeCells = [];
+      for(let x=1;x<gridSize-1;x++) for(let y=1;y<gridSize-1;y++) if(!snake.some(s=>s.x===x && s.y===y)) freeCells.push({x,y});
+      shuffle(freeCells);
+      for(let i=0;i<opts.length;i++){
+        const cell = freeCells[i]; if(!cell) break;
+        foods.push({x:cell.x,y:cell.y,label:(i+1),optIndex:labels[i]});
+      }
+      renderLegend();
+    }
+
+    function renderLegend(){
+      legendEl.innerHTML = '';
+      const q = QUESTIONS[currentQ];
+      foods.forEach(f=>{
+        const el = document.createElement('div'); el.className = 'legend-item';
+        el.innerHTML = `<div class="num">${f.label}</div><div style="font-weight:700">${q.opts[f.optIndex]}</div>`;
+        legendEl.appendChild(el);
+      });
+    }
+
+    function headMoveTo(tx,ty){
+      const head = {...snake[0]};
+      if(tx > head.x) nextDir = {x:1,y:0};
+      else if(tx < head.x) nextDir = {x:-1,y:0};
+      else if(ty > head.y) nextDir = {x:0,y:1};
+      else if(ty < head.y) nextDir = {x:0,y:-1};
+    }
+
+    function step(){
+      if(paused) return;
+      dir = nextDir;
+      const head = {x: snake[0].x + dir.x, y: snake[0].y + dir.y};
+      if(head.x < 0) head.x = gridSize - 1;
+      if(head.y < 0) head.y = gridSize - 1;
+      if(head.x >= gridSize) head.x = 0;
+      if(head.y >= gridSize) head.y = 0;
+
+      const collidedIndex = snake.findIndex(s=> s.x===head.x && s.y===head.y);
+      if(collidedIndex !== -1){ snake = snake.slice(0, collidedIndex); showToast('You hit yourself'); if(snake.length < 2){ lives--; resetSnake(); if(lives<=0){ gameOver(); return; } }}
+
+      snake.unshift(head);
+      const hitIdx = foods.findIndex(f=> f.x===head.x && f.y===head.y);
+      if(hitIdx !== -1){
+        const hit = foods[hitIdx]; const q = QUESTIONS[currentQ];
+        if(hit.optIndex === q.correct){ score += 10; showToast('Correct +10'); setTimeout(()=>{ currentQ = (currentQ+1) % QUESTIONS.length; renderQuestion(); }, 600);
+        } else { score = Math.max(0, score - 5); showToast('Incorrect -5'); snake.pop(); snake.pop(); lives--; if(lives<=0){ gameOver(); return; }}
+        foods.splice(hitIdx,1);
+      } else { snake.pop(); }
+      draw();
+    }
+
+    function gameOver(){ paused = true; showToast('Game Over — Reset to try again'); }
+
+    function draw(){
+      // clear using logical size
+      const logicalW = canvas.width / (window.devicePixelRatio || 1);
+      const logicalH = canvas.height / (window.devicePixelRatio || 1);
+      ctx.clearRect(0,0,logicalW,logicalH);
+      // grid
+      ctx.strokeStyle = 'rgba(0,0,0,0.03)'; ctx.lineWidth = 1;
+      for(let i=0;i<=gridSize;i++){ const p = i*cellSize; ctx.beginPath(); ctx.moveTo(p,0); ctx.lineTo(p,logicalH); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0,p); ctx.lineTo(logicalW,p); ctx.stroke(); }
+
+      // foods
+      foods.forEach(f=>{
+        const x = f.x*cellSize; const y = f.y*cellSize;
+        roundRect(ctx,x+4,y+4,cellSize-8,cellSize-8,8,true,false,'#fff');
+        ctx.strokeStyle = 'rgba(116,77,38,0.06)'; ctx.stroke();
+        ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--maroon') || '#982727';
+        ctx.font = `${Math.max(10, cellSize/3)}px Josefin Sans, system-ui`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(f.label, x + cellSize/2, y + cellSize/2);
+      });
+
+      // snake
+      for(let i=snake.length-1;i>=0;i--){ const s = snake[i]; const x = s.x*cellSize; const y = s.y*cellSize; if(i===0){ roundRect(ctx,x+2,y+2,cellSize-4,cellSize-4,6,true,false,'#FFF'); ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--maroon') || '#982727'; ctx.lineWidth = Math.max(1, Math.floor(cellSize/18)); ctx.stroke(); const eyeR = Math.max(1, Math.floor(cellSize/12)); const ex = x + cellSize/2 + (dir.x * eyeR*1.8); const ey = y + cellSize/2 + (dir.y * eyeR*1.8); ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--maroon') || '#982727'; ctx.beginPath(); ctx.arc(ex - eyeR, ey - eyeR, eyeR, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(ex + eyeR, ey + eyeR, eyeR, 0, Math.PI*2); ctx.fill(); } else { roundRect(ctx,x+3,y+3,cellSize-6,cellSize-6,6,true,false,'#fff'); ctx.strokeStyle = 'rgba(116,77,38,0.06)'; ctx.lineWidth = 1; ctx.stroke(); }}
+    }
+
+    function roundRect(ctx,x,y,w,h,r, fill=false, stroke=false, fillStyle='#fff'){ if(typeof r === 'undefined') r=6; ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); if(fill){ ctx.fillStyle = fillStyle; ctx.fill(); } if(stroke){ ctx.stroke(); }}
+
+    function resetSnake(){ snake = [ {x:4,y:6},{x:3,y:6},{x:2,y:6} ]; dir = {x:1,y:0}; nextDir = {x:1,y:0}; }
+    function resetGame(){ resetSnake(); score=0; lives=3; paused=false; currentQ=0; renderQuestion(); }
+
+    function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]];} return a }
+
+    function renderQuestion(){ const q = QUESTIONS[currentQ]; questionEl.textContent = q.q; placeFoodsForQuestion(currentQ); draw(); }
+
+    // controls: keyboard
+    window.addEventListener('keydown', (e)=>{ if(e.key === 'ArrowUp') setDir(0,-1); if(e.key === 'ArrowDown') setDir(0,1); if(e.key === 'ArrowLeft') setDir(-1,0); if(e.key === 'ArrowRight') setDir(1,0); if(e.key === ' ') { paused = !paused; showToast(paused? 'Paused' : 'Resumed'); } });
+    function setDir(x,y){ if(x === -dir.x && y === -dir.y) return; nextDir = {x,y}; }
+
+    // swipe for mobile (steering)
+    let touchStart = null;
+    canvas.addEventListener('touchstart', (e)=>{ touchStart = e.touches[0]; });
+    canvas.addEventListener('touchend', (e)=>{ if(!touchStart) return; const t = e.changedTouches[0]; const dx = t.clientX - touchStart.clientX; const dy = t.clientY - touchStart.clientY; if(Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 18){ if(dx>0) setDir(1,0); else setDir(-1,0); } else if(Math.abs(dy) > 18){ if(dy>0) setDir(0,1); else setDir(0,-1); } touchStart = null; });
+
+    // tap on canvas to nudge head toward food at tapped cell
+    canvas.addEventListener('click', (e)=>{ const rect = canvas.getBoundingClientRect(); const cx = e.clientX - rect.left; const cy = e.clientY - rect.top; const gx = Math.floor(cx / (canvas.clientWidth / gridSize)); const gy = Math.floor(cy / (canvas.clientHeight / gridSize)); const f = foods.find(ff=> ff.x === gx && ff.y === gy); if(f){ headMoveTo(f.x,f.y); } });
+
+    document.getElementById('resetBtn').addEventListener('click', resetGame);
+
+    // main loop
+    function startLoop(){ if(loopId) clearInterval(loopId); loopId = setInterval(step, tickInterval); }
+
+    // init
+    renderQuestion(); startLoop();
+    // adjust canvas after fonts/layout
+    setTimeout(resizeCanvas,80);
+
+  </script>
+</body>
+</html>

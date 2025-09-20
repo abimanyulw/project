@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Arrange Sentences — Worm Prevention</title>
+  <link href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@300;400;600&family=Yeseva+One&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --olive:#5e5d2d;
+      --gold:#f2be00;
+      --maroon:#982727;
+      --white:#ffffff;
+      --brown:#744d26;
+      --bg: #F6F4E8;
+      --card: var(--white);
+      --accent: var(--maroon);
+      --accent-2: var(--gold);
+      --muted: #7b735a;
+      --glass: rgba(255,255,252,0.6);
+      --shadow: 0 8px 22px rgba(11,8,6,0.06);
+      --radius:10px;
+      --gap:8px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;font-family:'Josefin Sans',system-ui,Segoe UI,Roboto,Arial; background: linear-gradient(135deg,var(--bg) 0%, #FFF9E0 100%); color:#0f172a;-webkit-font-smoothing:antialiased}
+    body{font-size:13px}
+    .wrap{max-width:1000px;margin:10px auto;padding:10px;border-radius:var(--radius);backdrop-filter: blur(4px);position:relative;background: linear-gradient(180deg, rgba(255,255,255,0.95), rgba(250,249,244,0.6));box-shadow: var(--shadow);width: calc(100% - 20px);}
+    header{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+    h1{font-family:'Yeseva One',serif;margin:0;font-size:16px;color:var(--accent);letter-spacing:0.3px}
+    p.lead{margin:0;color:var(--muted);font-size:11px}
+    .main{display:grid;grid-template-columns: 1fr 320px;gap:12px;align-items:start}
+    .panel{background:var(--card);border-radius:10px;padding:12px;box-shadow:var(--shadow);border:1px solid rgba(0,0,0,0.02)}
+    .left{min-height:320px}
+    .target-area{display:flex;flex-direction:column;gap:8px}
+    .slot{
+      min-height:48px;border-radius:10px;padding:10px;background:linear-gradient(180deg,#fff,rgba(255,250,240,0.98));border:1px dashed rgba(116,77,38,0.08);display:flex;align-items:center;gap:10px;
+      font-weight:700;color:var(--olive);cursor:pointer;
+    }
+    .slot.empty{color:rgba(15,23,42,0.25);font-weight:600}
+    .pool{margin-top:10px;display:flex;flex-wrap:wrap;gap:8px}
+    .tile{
+      padding:8px 10px;border-radius:10px;background:linear-gradient(180deg,#fff,rgba(255,250,240,0.98));border:1px solid rgba(16,24,40,0.04);cursor:pointer;box-shadow:0 6px 16px rgba(11,8,6,0.04);font-weight:700;
+      user-select:none;
+      max-width:100%;
+    }
+    .tile.dragging{opacity:0.45}
+    .controls{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}
+    .btn{border:0;padding:8px 12px;border-radius:10px;font-weight:700;cursor:pointer;background:var(--accent);color:var(--white);box-shadow:0 8px 18px rgba(152,39,39,0.12);}
+    .btn.ghost{background:transparent;border:1px solid rgba(15,23,42,0.06);color:var(--olive)}
+    .info-panel{font-size:13px}
+    .hint{font-size:12px;color:var(--muted);margin-top:8px}
+    .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:14px;background:var(--maroon);color:#fff;padding:8px 12px;border-radius:10px;box-shadow:0 10px 24px rgba(11,8,6,0.12);opacity:0;pointer-events:none;transition:opacity .18s ease,bottom .18s ease}
+    .toast.show{opacity:1;pointer-events:auto;bottom:22px}
+    @media (max-width:880px){ .main{grid-template-columns: 1fr 260px} }
+    @media (max-width:640px){ .main{grid-template-columns: 1fr} .controls{justify-content:center} }
+  </style>
+</head>
+<body>
+  <div class="wrap" role="main">
+    <header>
+      <h1>Conclusion</h1>
+      <div style="flex:1"></div>
+      <div style="text-align:right">
+        <p class="lead small">Form the paragraph by placing sentences in the right order.</p>
+      </div>
+    </header>
+
+    <div class="main">
+      <div class="panel left" aria-live="polite">
+        
+
+        <div id="target" class="target-area" style="margin-top:12px">
+          <!-- slots will be injected here -->
+        </div>
+
+        <div class="controls">
+          <button id="checkBtn" class="btn">Check</button>
+          <button id="shuffleBtn" class="btn ghost">Shuffle</button>
+          <button id="resetBtn" class="btn ghost">Reset</button>
+        </div>
+      </div>
+
+      <aside class="panel info-panel" aria-live="polite">
+        <div style="font-weight:700;color:var(--olive)">Shuffled Sentences</div>
+        <div id="pool" class="pool" style="margin-top:10px"></div>
+
+      </aside>
+    </div>
+
+    <footer style="margin-top:12px;text-align:center" class="small">Abimanyu Laksana Wicaksono</footer>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    /* Sentences (correct order) */
+    const SENTENCES = [
+      "In the end, worm infections may seem like a small and common problem, but Raya’s story proves that under the wrong conditions they can become very dangerous.",
+      "While most infections are preventable and treatable, poverty, malnutrition, and lack of sanitation can turn them into life-threatening cases.",
+      "That is why prevention through regular deworming, clean habits, and community awareness is so important.",
+      "If families, schools, and governments work together, we can make sure that no child has to suffer the same fate again."
+    ];
+
+    // state
+    let poolState = []; // objects {id, text}
+    let slotsState = new Array(SENTENCES.length).fill(null); // placed id or null
+
+    // DOM
+    const poolEl = document.getElementById('pool');
+    const targetEl = document.getElementById('target');
+    const toast = document.getElementById('toast');
+    const checkBtn = document.getElementById('checkBtn');
+    const shuffleBtn = document.getElementById('shuffleBtn');
+    const resetBtn = document.getElementById('resetBtn');
+
+    function showToast(msg){
+      toast.textContent = msg; toast.classList.add('show');
+      setTimeout(()=> toast.classList.remove('show'), 1200);
+    }
+
+    function init(){
+      // initialize pool with shuffled sentences
+      poolState = SENTENCES.map((t,i)=> ({id:i, text:t}));
+      shuffle(poolState);
+      slotsState = new Array(SENTENCES.length).fill(null);
+      renderPool();
+      renderSlots();
+    }
+
+    function renderSlots(){
+      targetEl.innerHTML = '';
+      for(let i=0;i<SENTENCES.length;i++){
+        const slot = document.createElement('div');
+        slot.className = 'slot' + (slotsState[i] === null ? ' empty' : '');
+        slot.dataset.index = i;
+        slot.draggable = true;
+
+        if(slotsState[i] === null){
+          slot.textContent = `Slot ${i+1} — (tap to place)`;
+        } else {
+          const item = poolState.find(p=>p.id === slotsState[i]) || {id:slotsState[i], text:SENTENCES[slotsState[i]]};
+          slot.textContent = item.text;
+        }
+
+        // click behavior: if contains tile, return it to pool
+        slot.addEventListener('click', ()=>{
+          if(slotsState[i] !== null){
+            // move back to pool (end)
+            poolState.push({id: slotsState[i], text: SENTENCES[slotsState[i]]});
+            slotsState[i] = null;
+            renderPool();
+            renderSlots();
+          } else {
+            // place next pool item into this slot
+            if(poolState.length === 0){ showToast('No more sentences in pool'); return; }
+            const next = poolState.shift();
+            slotsState[i] = next.id;
+            renderPool();
+            renderSlots();
+          }
+        });
+
+        // drag events for slot (accept drops)
+        slot.addEventListener('dragover', (e)=>{ e.preventDefault(); slot.style.borderColor = 'rgba(152,39,39,0.35)'; });
+        slot.addEventListener('dragleave', ()=>{ slot.style.borderColor = 'rgba(116,77,38,0.08)'; });
+        slot.addEventListener('drop', (e)=>{
+          e.preventDefault();
+          slot.style.borderColor = 'rgba(116,77,38,0.08)';
+          const id = Number(e.dataTransfer.getData('text/plain'));
+          // remove from poolState
+          const idx = poolState.findIndex(p=>p.id===id);
+          if(idx !== -1){
+            const item = poolState.splice(idx,1)[0];
+            // if slot already occupied, swap back to pool
+            if(slotsState[i] !== null) poolState.push({id: slotsState[i], text: SENTENCES[slotsState[i]]});
+            slotsState[i] = item.id;
+            renderPool();
+            renderSlots();
+          } else {
+            // maybe dragging from another slot (swap)
+            const fromSlotIndex = slotsState.findIndex(s=>s===id);
+            if(fromSlotIndex !== -1){
+              // swap positions
+              slotsState[fromSlotIndex] = slotsState[i];
+              slotsState[i] = id;
+              renderSlots();
+            }
+          }
+        });
+
+        // allow dragging a placed sentence back to pool or to other slot by dragging from slot
+        slot.addEventListener('dragstart', (e)=>{
+          if(slotsState[i] === null){ e.preventDefault(); return; }
+          e.dataTransfer.setData('text/plain', slotsState[i]);
+          // small visual
+          slot.classList.add('dragging');
+          setTimeout(()=> slot.classList.remove('dragging'), 300);
+        });
+
+        targetEl.appendChild(slot);
+      }
+    }
+
+    function renderPool(){
+      poolEl.innerHTML = '';
+      poolState.forEach(p=>{
+        const tile = document.createElement('div');
+        tile.className = 'tile';
+        tile.textContent = p.text;
+        tile.dataset.id = p.id;
+        tile.draggable = true;
+
+        // click to place into first empty slot
+        tile.addEventListener('click', ()=>{
+          const emptyIdx = slotsState.findIndex(s=>s===null);
+          if(emptyIdx === -1){ showToast('All slots filled — remove one to place'); return; }
+          // remove tile from pool
+          const idx = poolState.findIndex(pp=>pp.id===p.id);
+          if(idx !== -1) poolState.splice(idx,1);
+          slotsState[emptyIdx] = p.id;
+          renderPool();
+          renderSlots();
+        });
+
+        // drag start: set id
+        tile.addEventListener('dragstart', (e)=>{
+          e.dataTransfer.setData('text/plain', p.id);
+          tile.classList.add('dragging');
+        });
+        tile.addEventListener('dragend', ()=> tile.classList.remove('dragging'));
+
+        poolEl.appendChild(tile);
+      });
+
+      if(poolState.length === 0){
+        const note = document.createElement('div');
+        note.style.color = 'var(--muted)';
+        note.style.fontSize = '12px';
+        note.textContent = 'Pool empty — remove a sentence from a slot to return it here.';
+        poolEl.appendChild(note);
+      }
+    }
+
+    // Check correctness
+    checkBtn.addEventListener('click', ()=>{
+      // if any empty slots exist, warn
+      if(slotsState.some(s=>s===null)){ showToast('Fill all slots before checking'); return; }
+      let correct = 0;
+      for(let i=0;i<SENTENCES.length;i++){
+        if(slotsState[i] === i) correct++;
+      }
+      if(correct === SENTENCES.length){
+        showToast('Excellent — paragraph correctly assembled!');
+        // visually show success
+        targetEl.querySelectorAll('.slot').forEach(s=> s.style.borderColor = 'rgba(16,128,56,0.14)');
+      } else {
+        showToast(`Not quite — ${correct}/${SENTENCES.length} correct. Try again!`);
+      }
+    });
+
+    shuffleBtn.addEventListener('click', ()=>{ // shuffle pool and clear slots (but return placed to pool)
+      const placed = slotsState.filter(s=> s !== null).map(id=> ({id, text:SENTENCES[id]}));
+      poolState = poolState.concat(placed);
+      shuffle(poolState);
+      slotsState = new Array(SENTENCES.length).fill(null);
+      renderPool(); renderSlots();
+    });
+
+    resetBtn.addEventListener('click', init);
+
+    // simple Fisher-Yates shuffle
+    function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]];} return a; }
+
+    // initialize
+    init();
+
+    // accessibility: keyboard support to move first pool item to next slot (Enter when focused on pool)
+    poolEl.addEventListener('keydown', (e)=>{
+      if(e.key === 'Enter'){
+        const first = poolState[0];
+        if(!first) return;
+        const emptyIdx = slotsState.findIndex(s=>s===null);
+        if(emptyIdx === -1){ showToast('All slots filled'); return; }
+        poolState.shift();
+        slotsState[emptyIdx] = first.id;
+        renderPool(); renderSlots();
+      }
+    });
+
+    // small helpful tip: allow double-click on slot to auto-fill next with first pool item
+    targetEl.addEventListener('dblclick', (e)=>{
+      const slot = e.target.closest('.slot');
+      if(!slot) return;
+      const idx = Number(slot.dataset.index);
+      if(slotsState[idx] !== null) return;
+      if(poolState.length === 0) return;
+      const next = poolState.shift();
+      slotsState[idx] = next.id;
+      renderPool(); renderSlots();
+    });
+
+  </script>
+</body>
+</html>

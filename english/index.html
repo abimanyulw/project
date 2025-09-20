@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Abimanyu Laksana Wicaksono</title>
+<style>
+  :root{
+    --accent:#982727;
+    --bg:#F6F4E8;
+    --panel: rgba(0, 0, 0, 0.75);
+    --control-h:56px;
+    --radius:12px;
+  }
+
+  /* Page */
+  body{
+    margin:0;
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:linear-gradient(135deg,var(--bg) 0%, #FFF9E0 100%);
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    color:#fff;
+  }
+
+  /* AUTOHIDE CONTROLS */
+  .controls {
+    transition: opacity 0.28s ease, visibility 0.28s;
+    will-change: opacity;
+  }
+  .controls.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+  .controls.visible {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  /* Container that will go fullscreen */
+  #videoContainer{
+    position:relative;
+    width:92%;
+    max-width:980px;
+    border-radius:var(--radius);
+    overflow:hidden;
+    background:#000;
+    box-shadow:0 10px 40px rgba(2,6,23,0.6);
+  }
+
+  /* Replace native <video> with YouTube player container */
+  #player{
+    display:block;
+    width:100%;
+    /* default responsive 16:9 height when NOT fullscreen */
+    height:calc(100vw * 9 / 16);
+    max-height:70vh;
+    background:#000;
+  }
+
+  /* Ensure iframe always fills the player container */
+  #player iframe { width:100%; height:100%; border:0; display:block; }
+
+  /* When the player container is made fullscreen, force it to fill the viewport
+     from top to bottom so it won't appear 'stuck' near the top. Also remove the
+     max-height so it can use the full screen space. */
+  :fullscreen #player,
+  :-webkit-full-screen #player,
+  :fullscreen #videoContainer #player,
+  :-webkit-full-screen #videoContainer #player {
+    height:100vh !important;
+    max-height:none !important;
+  }
+
+  /* Make YT iframe perfectly fill the player container */
+  #player iframe { width:100%; height:100%; border:0; display:block; }
+
+  /* Controls panel (overlay) */
+  .controls {
+    position:absolute;
+    left:0;
+    right:0;
+    bottom:0;
+    display:flex;
+    gap:10px;
+    align-items:center;
+    padding:10px;
+    background: linear-gradient(to top, rgba(5,6,7,0.85), rgba(5,6,7,0.35) 60%, transparent);
+    box-sizing:border-box;
+    z-index:30;
+  }
+
+  .controls-inner{
+    display:flex;
+    gap:12px;
+    align-items:center;
+    width:100%;
+    padding:6px 10px;
+    background:var(--panel);
+    border-radius:10px;
+    backdrop-filter: blur(6px);
+  }
+
+  /* Left group: play / time */
+  .left {
+    display:flex;
+    gap:10px;
+    align-items:center;
+    min-width:170px;
+  }
+
+  .btn {
+    width:44px;
+    height:44px;
+    border-radius:10px;
+    border: none;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    background: rgba(255,255,255,0.06);
+    color:#fff;
+    cursor:pointer;
+    transition:transform .12s ease, background .12s;
+  }
+  .btn:hover{ transform: translateY(-2px); background: rgba(255,255,255,0.09); }
+
+  .time {
+    font-size:13px;
+    color:#d7d7d7;
+    min-width:86px;
+    text-align:left;
+  }
+
+  /* Progress (center) */
+  .progress-wrap{
+    flex:1;
+    display:flex;
+    align-items:center;
+    gap:12px;
+  }
+
+  input[type="range"].progress{
+    -webkit-appearance:none;
+    width:100%;
+    height:6px;
+    border-radius:6px;
+    background: linear-gradient(90deg, var(--accent) 0%, rgba(255,255,255,0.12) 0%);
+    outline:none;
+  }
+  input[type="range"].progress::-webkit-slider-thumb{
+    -webkit-appearance:none;
+    width:14px;
+    height:14px;
+    border-radius:50%;
+    background:#fff;
+    box-shadow:0 2px 6px rgba(0,0,0,.6);
+    cursor:pointer;
+    border:3px solid var(--accent);
+  }
+
+  /* Right group: volume & fullscreen */
+  .right {
+    display:flex;
+    gap:8px;
+    align-items:center;
+    min-width:150px;
+    justify-content:flex-end;
+  }
+
+  .vol-wrap{
+    display:flex;
+    gap:8px;
+    align-items:center;
+    width:120px;
+  }
+  input[type="range"].volume{
+    width:80px;
+    -webkit-appearance:none;
+    height:5px;
+    background: rgba(255,255,255,0.06);
+    border-radius:5px;
+    outline:none;
+  }
+  input[type="range"].volume::-webkit-slider-thumb{
+    -webkit-appearance:none;
+    width:10px;
+    height:10px;
+    border-radius:50%;
+    background:#fff;
+    box-shadow:0 1px 3px rgba(0,0,0,.6);
+    border:2px solid rgba(0,0,0,0.25);
+    cursor:pointer;
+  }
+
+  .fullscreen-btn{
+    min-width:44px;
+  }
+
+  /* Popup (reusable) */
+  .popup {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    transform: none;
+    background: #fff;
+    border-radius: 0;
+    box-shadow: 0 30px 80px rgba(2,6,23,0.6);
+    display: none;
+    z-index: 60;
+    overflow: hidden;
+  }
+  .popup.popup--visible { display: block; }
+  .popup .popup-inner {
+    width:100%;
+    height:100%;
+    position:relative;
+    display:flex;
+    align-items:stretch;
+    justify-content:center;
+    background:#fff;
+  }
+  .popup iframe{ width:100%; height:100%; border:0; display:block; }
+  .popup .popup-close {
+    position:absolute;
+    top:10px;
+    right:12px;
+    background:#ef4444;
+    color:#fff;
+    border:none;
+    width:34px;
+    height:34px;
+    border-radius:50%;
+    font-weight:700;
+    cursor:pointer;
+    z-index:70;
+  }
+  .popup .popup-actions {
+    position:absolute;
+    bottom:14px;
+    left:50%;
+    transform:translateX(-50%);
+    z-index:70;
+    display:flex;
+    gap:8px;
+    align-items:center;
+  }
+  .popup .popup-actions button { padding:8px 12px; border-radius:8px; border:none; cursor:pointer; }
+
+  /* Make controls adapt on small screens */
+  @media (max-width:560px){
+    .controls-inner{ padding:8px; gap:8px; }
+    .time{ display:none; }
+    .vol-wrap{ display:none; }
+
+    /* popup becomes a centered floating panel on small screens */
+    .popup{ width:92%; height:60%; top:8%; left:50%; transform:translateX(-50%); border-radius:12px; }
+
+    /* Make fullscreen button 'offside' (positioned outside control bar)
+       so it doesn't crowd the bottom controls on mobile. */
+    .fullscreen-btn{
+      position:absolute;
+      right:12px;
+      top:12px;
+      z-index:80;
+      width:42px;
+      height:42px;
+      border-radius:10px;
+      box-shadow:0 6px 18px rgba(0,0,0,0.45);
+      background: rgba(255,255,255,0.06);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+
+    /* ensure controls bar has bottom padding so it won't be covered by offside button */
+    .controls { padding-bottom:14px; }
+  }
+
+  /* When container is fullscreen, remove border radius so video fills screen cleanly */
+  :fullscreen #videoContainer, :-webkit-full-screen #videoContainer {
+    border-radius: 0;
+    /* force the fullscreen container to occupy the whole viewport */
+    width:100vw !important;
+    height:100vh !important;
+    top:0; left:0;
+  }
+
+  /* Small accessibility helper for hidden elements */
+  .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+</style>
+</head>
+<body>
+
+<!--
+  NOTE: Put your YouTube link in the data-youtube attribute below.
+  Example: data-youtube="https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+  This URL is not shown on the page — it's read by the script and used to load the player.
+-->
+<div id="videoContainer" tabindex="0" aria-label="Custom video player container" data-youtube="https://youtu.be/7hE9q8A73zc?feature=shared">
+
+  <!-- YouTube player container (replaces <video>) -->
+  <div id="player" aria-hidden="false"></div>
+
+  <!--
+    POPUPS: note we store actual src in data-src and keep src="about:blank" until opened
+    popup behavior stays the same as before.
+  -->
+
+  <!-- EXAMPLE popup 1: iframe, triggered at 10s -->
+  <div class="popup" id="popup-1"
+       data-trigger="time"
+       data-start="228"
+       data-autopause="true"
+       data-resume="true"
+       data-repeat="false"
+       data-music="musik.mp3"
+       aria-hidden="true">
+    <div class="popup-inner">
+      <button class="popup-close" data-popup-close aria-label="Close popup">×</button>
+      <!-- lazy iframe -->
+      <iframe data-src="quiz1.html" src="about:blank" title="Quiz 1"></iframe>
+    </div>
+  </div>
+
+  <!-- EXAMPLE popup 2: iframe, triggered at 20s -->
+   <div class="popup" id="popup-2"
+       data-trigger="time"
+       data-start="381"
+       data-autopause="true"
+       data-resume="true"
+       data-repeat="false"
+       data-music="musik.mp3"
+       aria-hidden="true">
+    <div class="popup-inner">
+      <button class="popup-close" data-popup-close aria-label="Close popup">×</button>
+      <!-- lazy iframe -->
+      <iframe data-src="quiz2.html" src="about:blank" title="Quiz 2"></iframe>
+    </div>
+  </div>
+  
+    <!-- EXAMPLE popup 3: iframe, triggered at 30s -->
+  <div class="popup" id="popup-3"
+       data-trigger="time"
+       data-start="407"
+       data-autopause="true"
+       data-resume="true"
+       data-repeat="false"
+       data-music="musik.mp3"
+       aria-hidden="true">
+    <div class="popup-inner">
+      <button class="popup-close" data-popup-close aria-label="Close popup">×</button>
+      <!-- lazy iframe -->
+      <iframe data-src="quiz3.html" src="about:blank" title="Quiz 3"></iframe>
+    </div>
+  </div>
+
+  <!-- Custom controls (same layout but wired to YouTube API) -->
+  <div class="controls" aria-hidden="false">
+    <div class="controls-inner">
+
+      <div class="left">
+        <button id="playPause" class="btn" aria-label="Play/Pause" title="Play (space)">
+          <!-- play icon default (SVG) -->
+          <svg id="iconPlay" width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M5 3v18l15-9L5 3z" fill="currentColor"/>
+          </svg>
+        </button>
+
+        <div class="time" id="timeDisplay" aria-live="polite">00:00 / 00:00</div>
+      </div>
+
+      <div class="progress-wrap" aria-hidden="false">
+        <input type="range" id="progress" class="progress" min="0" max="100" value="0" step="0.01" aria-label="Seek" />
+      </div>
+
+      <div class="right">
+        <div class="vol-wrap" title="Volume">
+          <button id="muteBtn" class="btn" aria-label="Mute/Unmute" title="Mute">
+            <!-- volume icon -->
+            <svg id="iconVol" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M5 9v6h4l5 4V5L9 9H5z" fill="currentColor"/>
+            </svg>
+          </button>
+          <input id="volume" class="volume" type="range" min="0" max="1" step="0.01" value="1" aria-label="Volume slider" />
+        </div>
+
+        <!-- Fullscreen button (on mobile it's moved 'offside' via CSS). -->
+        <button class="btn fullscreen-btn" id="fsBtn" aria-label="Toggle fullscreen" title="Fullscreen (F)">
+          <svg id="fsIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M7 14H5v5h5v-2H7v-3zm10 5h-3v2h5v-5h-2v3zM7 5h3V3H5v5h2V5zm7 0h3v3h2V3h-5v2z" fill="currentColor"/>
+          </svg>
+        </button>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- global backup music (optional) -->
+<audio id="globalPopupMusic" src="musik.mp3" preload="auto"></audio>
+
+<script>
+/*
+  This script uses the YouTube IFrame API to replace the <video> element functionality.
+  - Put a YouTube URL in the data-youtube attribute of #videoContainer.
+  - Controls (play/pause, seek, volume, mute, fullscreen) are wired to the YT player.
+  - Popups trigger based on seconds (same data-start values) and will pause/resume the player.
+*/
+
+(function(){
+  const videoContainer = document.getElementById('videoContainer');
+  const playPauseBtn = document.getElementById('playPause');
+  const progress = document.getElementById('progress');
+  const timeDisplay = document.getElementById('timeDisplay');
+  const muteBtn = document.getElementById('muteBtn');
+  const volume = document.getElementById('volume');
+  const fsBtn = document.getElementById('fsBtn');
+  const globalPopupMusic = document.getElementById('globalPopupMusic');
+  const playerEl = document.getElementById('player');
+
+  // Popups setup (same as original)
+  const popupEls = Array.from(document.querySelectorAll('.popup'));
+  const popups = popupEls.map(el => {
+    const triggerRaw = (el.dataset.trigger || 'manual').toString().trim().toLowerCase();
+    const startRaw = el.dataset.start;
+    return {
+      id: el.id || null,
+      el,
+      trigger: (triggerRaw === 'time') ? 'time' : 'manual',
+      start: (startRaw !== undefined && startRaw !== null && startRaw !== '') ? parseFloat(startRaw) : null,
+      autopause: el.dataset.autopause !== 'false',
+      resume: el.dataset.resume !== 'false',
+      repeat: el.dataset.repeat === 'true',
+      music: el.dataset.music || null,
+      triggered: false
+    };
+  });
+
+  console.info('Popups initialized:', popups.map(p => ({ id: p.id, trigger: p.trigger, start: p.start })));
+
+  // helper: extract videoId from various YouTube URL formats
+  function extractYouTubeID(url){
+    if (!url) return null;
+    try {
+      const u = new URL(url.trim());
+      if (u.hostname === 'youtu.be') return u.pathname.slice(1);
+      if (u.hostname.endsWith('youtube.com')){
+        return u.searchParams.get('v');
+      }
+      return null;
+    } catch(e){
+      // fallback: regex
+      const m = url.match(/(?:v=|\/)([0-9A-Za-z_-]{11})/);
+      return m ? m[1] : null;
+    }
+  }
+
+  // Read youtube link from data attribute (edit here in HTML)
+  const youtubeUrl = videoContainer.dataset.youtube || '';
+  const videoId = extractYouTubeID(youtubeUrl);
+
+  // Fallback: if no video id, show an empty placeholder
+  if (!videoId){
+    playerEl.innerHTML = '<div style="padding:24px;color:#ddd;background:#111;text-align:center;">No YouTube link found. Set data-youtube on #videoContainer.</div>';
+    console.warn('No YouTube video id found in data-youtube.');
+    return;
+  }
+
+  // Load YouTube Iframe API
+  let YTReady = false;
+  let YTPlayer = null;
+  window.onYouTubeIframeAPIReady = function(){ YTReady = true; createPlayer(); };
+  (function loadYT(){
+    if (window.YT && window.YT.Player){ YTReady = true; createPlayer(); return; }
+    const s = document.createElement('script');
+    s.src = 'https://www.youtube.com/iframe_api';
+    document.head.appendChild(s);
+  })();
+
+  function createPlayer(){
+    if (!YTReady) return;
+    if (YTPlayer) return;
+
+    YTPlayer = new YT.Player('player', {
+      videoId: videoId,
+      playerVars: {
+        controls: 0,
+        modestbranding: 1,
+        rel: 0,
+        playsinline: 1,
+        fs: 0, // we handle fullscreen on container to avoid iframe fullscreen differences
+        iv_load_policy: 3, // hide video annotations
+        disablekb: 1 // disable youtube keyboard handling so our shortcuts stay consistent
+      },
+      events: {
+        onReady: onPlayerReady,
+        onStateChange: onPlayerStateChange
+      }
+    });
+  }
+
+  let progressPoll = null;
+  function startProgressPoll(){
+    if (progressPoll) return;
+    progressPoll = setInterval(()=>{
+      try {
+        const dur = YTPlayer.getDuration() || 0;
+        const cur = YTPlayer.getCurrentTime() || 0;
+        updateTimeDisplay(cur, dur);
+        // progress update if user is not dragging
+        if (!seeking && dur>0){
+          progress.value = (cur / dur) * 100;
+        }
+
+        // Check time-based popups
+        popups.forEach(p => {
+          if (p.trigger === 'time' && p.start !== null) {
+            const tolerance = 0.5;
+            if ((cur + tolerance >= p.start) && (!p.triggered || p.repeat)) {
+              console.debug('Triggering popup', p.id, 'at', cur);
+              openPopup(p.id);
+              p.triggered = true;
+            }
+          }
+        });
+
+      } catch(e){}
+    }, 400);
+  }
+  function stopProgressPoll(){ if (progressPoll){ clearInterval(progressPoll); progressPoll = null; } }
+
+  function onPlayerReady(){
+    // Initialize UI state
+    updatePlayIcon();
+    updateVolIcon();
+    updateFsIcon();
+    // Ensure initial volume slider reflects player
+    try { const vol = YTPlayer.getVolume()/100; volume.value = vol; } catch(e){}
+    startProgressPoll();
+  }
+
+  function onPlayerStateChange(e){
+    updatePlayIcon();
+    if (e.data === YT.PlayerState.PLAYING){ startProgressPoll(); }
+    if (e.data === YT.PlayerState.PAUSED){ /* keep timer for UI */ }
+    if (e.data === YT.PlayerState.ENDED){ updatePlayIcon(); }
+  }
+
+  // Helper: format seconds -> mm:ss or hh:mm:ss
+  function formatTime(s){
+    if (!isFinite(s)) return "00:00";
+    s = Math.floor(s);
+    const h = Math.floor(s/3600);
+    const m = Math.floor((s%3600)/60);
+    const sec = s%60;
+    return (h>0 ? String(h).padStart(2,'0')+':' : '') + String(m).padStart(2,'0') + ':' + String(sec).padStart(2,'0');
+  }
+
+  function updateTimeDisplay(cur, dur){
+    timeDisplay.textContent = `${formatTime(cur)} / ${formatTime(dur || 0)}`;
+  }
+
+  // Play/pause icon handling
+  function updatePlayIcon(){
+    const isPlaying = (YTPlayer && YTPlayer.getPlayerState && YTPlayer.getPlayerState() === YT.PlayerState.PLAYING);
+    if (!isPlaying){
+      playPauseBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5 3v18l15-9L5 3z" fill="currentColor"/></svg>`;
+    } else {
+      playPauseBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" fill="currentColor"/></svg>`;
+    }
+  }
+
+  playPauseBtn.addEventListener('click', () => {
+    if (!YTPlayer) return;
+    const state = YTPlayer.getPlayerState && YTPlayer.getPlayerState();
+    if (state === YT.PlayerState.PLAYING){ YTPlayer.pauseVideo(); }
+    else { YTPlayer.playVideo(); }
+    updatePlayIcon();
+  });
+
+  // Keyboard shortcuts (focus on container)
+  videoContainer.addEventListener('keydown', (e) => {
+    if (e.code === 'Space'){ e.preventDefault(); togglePlay(); }
+    if (e.code === 'KeyF'){ toggleFullscreen(); }
+    if (e.code === 'KeyM'){ toggleMute(); }
+  });
+
+  function togglePlay(){
+    if (!YTPlayer) return;
+    const s = YTPlayer.getPlayerState();
+    if (s === YT.PlayerState.PLAYING) YTPlayer.pauseVideo(); else YTPlayer.playVideo();
+    updatePlayIcon();
+  }
+
+  // Seeking & time
+  let seeking = false;
+  progress.addEventListener('input', () => {
+    seeking = true;
+    if (!YTPlayer) return;
+    const dur = YTPlayer.getDuration() || 0;
+    const t = (progress.value / 100) * dur;
+    updateTimeDisplay(t, dur);
+  });
+  progress.addEventListener('change', () => {
+    if (!YTPlayer) { seeking=false; return; }
+    const dur = YTPlayer.getDuration() || 0;
+    const t = (progress.value / 100) * dur;
+    YTPlayer.seekTo(t, true);
+    seeking = false;
+  });
+
+  // Volume & mute
+  function updateVolIcon(){
+    if (!YTPlayer) return;
+    try {
+      const muted = YTPlayer.isMuted();
+      const v = YTPlayer.getVolume()/100;
+      if (muted || v === 0){
+        muteBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24"><path d="M16.5 12l4.5 4.5-1.5 1.5L15 13.5l-4.5 4.5H9V6h1.5L15 10.5l4.5-4.5 1.5 1.5L16.5 12z" fill="currentColor"/></svg>`;
+      } else if (v < 0.5) {
+        muteBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24"><path d="M5 9v6h4l5 4V5L9 9H5z" fill="currentColor"/></svg>`;
+      } else {
+        muteBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24"><path d="M5 9v6h4l5 4V5L9 9H5z" fill="currentColor"/><path d="M19 12c0-1.77-.77-3.36-1.98-4.47l-1.43 1.43A5 5 0 0117 12c0 1.38-.56 2.63-1.46 3.54l1.43 1.43C18.23 15.36 19 13.77 19 12z" fill="currentColor"/></svg>`;
+      }
+    } catch(e){}
+  }
+
+  muteBtn.addEventListener('click', () => toggleMute());
+  function toggleMute(){
+    if (!YTPlayer) return;
+    try {
+      if (YTPlayer.isMuted()){
+        YTPlayer.unMute();
+        const vol = (YTPlayer.getVolume()||100)/100; volume.value = vol;
+      } else {
+        YTPlayer.mute(); volume.value = 0;
+      }
+      updateVolIcon();
+    } catch(e){}
+  }
+  volume.addEventListener('input', (e) => {
+    if (!YTPlayer) return;
+    const v = parseFloat(e.target.value);
+    try { YTPlayer.setVolume(Math.round(v*100)); YTPlayer.unMute(); } catch(e){}
+    updateVolIcon();
+  });
+
+  // Fullscreen & orientation lock (same approach as original)
+  async function requestFullscreenWithOrientationLock() {
+    try {
+      if (videoContainer.requestFullscreen) await videoContainer.requestFullscreen();
+      else if (videoContainer.webkitRequestFullscreen) await videoContainer.webkitRequestFullscreen();
+      else if (videoContainer.msRequestFullscreen) await videoContainer.msRequestFullscreen();
+
+      try {
+        const screenObj = (screen && screen.orientation) ? screen.orientation : (window.screen && window.screen.orientation ? window.screen.orientation : null);
+        if (screenObj && typeof screenObj.lock === 'function') {
+          await screenObj.lock('landscape').catch(()=> screenObj.lock('landscape-primary').catch(()=>{}));
+        } else if (typeof window.screen.lockOrientation === 'function') {
+          try { window.screen.lockOrientation('landscape'); } catch(e) {}
+        }
+      } catch (err) {}
+      updateFsIcon();
+    } catch (err) {
+      console.warn('Fullscreen request failed:', err);
+    }
+  }
+
+  async function exitFullscreenWithUnlock() {
+    try {
+      if (document.exitFullscreen) await document.exitFullscreen();
+      else if (document.webkitExitFullscreen) await document.webkitExitFullscreen();
+      else if (document.msExitFullscreen) await document.msExitFullscreen();
+    } catch (err) {
+      console.warn('Exit fullscreen failed:', err);
+    } finally {
+      try {
+        const screenObj = (screen && screen.orientation) ? screen.orientation : (window.screen && window.screen.orientation ? window.screen.orientation : null);
+        if (screenObj && typeof screenObj.unlock === 'function') {
+          screenObj.unlock();
+        } else if (typeof window.screen.unlockOrientation === 'function') {
+          try { window.screen.unlockOrientation(); } catch(e) {}
+        }
+      } catch (err) {}
+      updateFsIcon();
+    }
+  }
+
+  function isFullscreenActive() {
+    return !!(document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement);
+  }
+
+  async function toggleFullscreen(){
+    if (isFullscreenActive()) {
+      await exitFullscreenWithUnlock();
+    } else {
+      await requestFullscreenWithOrientationLock();
+    }
+  }
+
+  if (fsBtn) fsBtn.addEventListener('click', toggleFullscreen);
+  function updateFsIcon(){
+    if (isFullscreenActive()) {
+      fsBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9 9H5V5h4V3H3v6h6V9zM21 3h-6v2h4v4h2V3zM3 21h6v-2H5v-4H3v6zm18 0v-6h-2v4h-4v2h6z" fill="currentColor"/></svg>`;
+    } else {
+      fsBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7 14H5v5h5v-2H7v-3zm10 5h-3v2h5v-5h-2v3zM7 5h3V3H5v5h2V5zm7 0h3v3h2V3h-5v2z" fill="currentColor"/></svg>`;
+    }
+  }
+
+  // Double click toggles fullscreen too
+  videoContainer.addEventListener('dblclick', toggleFullscreen);
+  document.addEventListener('fullscreenchange', () => {
+    updateFsIcon();
+    if (!isFullscreenActive()) {
+      try { if (screen && screen.orientation && typeof screen.orientation.unlock === 'function') screen.orientation.unlock(); } catch (e) {}
+    }
+  });
+
+  // Popup helpers (generic & flexible)
+  function getPopupMetaById(id) {
+    return popups.find(p => p.id === id) || null;
+  }
+  function isAnyPopupVisible() {
+    return popups.some(p => p.el.classList.contains('popup--visible'));
+  }
+
+  // Attempt to play a music source; returns the audio element created so we can stop it later
+  function playPopupMusic(src) {
+    if (!src) return null;
+    try {
+      const a = new Audio(src);
+      a.preload = 'auto';
+      a.currentTime = 0;
+      const p = a.play();
+      if (p !== undefined) p.catch(()=>{/* autoplay blocked */});
+      return a;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  let activePopupMusic = null;
+
+  // Open a popup by id (or element) — lazy-load iframe from data-src
+  function openPopup(idOrEl) {
+    let el = null;
+    if (typeof idOrEl === 'string') {
+      el = document.getElementById(idOrEl);
+      if (!el) { console.warn('openPopup: id not found', idOrEl); return; }
+    } else { el = idOrEl; }
+
+    const meta = popups.find(p => p.el === el || p.id === el.id);
+    if (!meta) { console.warn('openPopup: popup meta not found for', el); return; }
+
+    // lazy-load iframe if it has data-src
+    const iframe = meta.el.querySelector('iframe[data-src]');
+    if (iframe) {
+      const src = iframe.getAttribute('data-src');
+      if (iframe.getAttribute('src') !== src) iframe.setAttribute('src', src);
+    }
+
+    // Show element
+    meta.el.classList.add('popup--visible');
+    meta.el.setAttribute('aria-hidden', 'false');
+
+    // Autopause player if requested
+    if (meta.autopause && YTPlayer){ try { YTPlayer.pauseVideo(); } catch(e){} }
+
+    // Stop any existing popup music
+    if (activePopupMusic) { try { activePopupMusic.pause(); activePopupMusic = null; } catch(e){} }
+
+    // Play per-popup music if provided, else fallback to global popup music (if set)
+    const musicSrc = meta.music || (globalPopupMusic && globalPopupMusic.src) || null;
+    if (musicSrc) activePopupMusic = playPopupMusic(musicSrc);
+
+    // Ensure controls are visible while popup open
+    const controlsEl = document.querySelector('.controls');
+    if (controlsEl) { controlsEl.classList.remove('hidden'); controlsEl.classList.add('visible'); }
+  }
+
+  // Close a popup by id (or element) — clear iframe src to avoid cross-popup state
+  function closePopup(idOrEl) {
+    let el = null;
+    if (typeof idOrEl === 'string') {
+      el = document.getElementById(idOrEl);
+      if (!el) { console.warn('closePopup: id not found', idOrEl); return; }
+    } else { el = idOrEl; }
+    const meta = popups.find(p => p.el === el || p.id === el.id);
+    if (!meta) { console.warn('closePopup: popup meta not found for', el); return; }
+
+    // Hide element
+    meta.el.classList.remove('popup--visible');
+    meta.el.setAttribute('aria-hidden', 'true');
+
+    // Stop popup music
+    if (activePopupMusic) { try { activePopupMusic.pause(); activePopupMusic = null; } catch(e){} }
+
+    // Optionally clear iframe src to reset content
+    const iframe = meta.el.querySelector('iframe[data-src]');
+    if (iframe) { iframe.setAttribute('src', 'about:blank'); }
+
+    // Resume player if requested
+    if (meta.resume && YTPlayer){ setTimeout(()=> { try { YTPlayer.playVideo(); } catch(e){} updatePlayIcon(); }, 90); }
+  }
+
+  // Expose simple API for manual opens
+  window.openPopup = function(id){ openPopup(id); };
+  window.closePopup = function(id){ closePopup(id); };
+
+  // Wire close buttons inside popups (data-popup-close)
+  document.querySelectorAll('[data-popup-close]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const popupEl = e.target.closest('.popup');
+      if (popupEl) closePopup(popupEl);
+    });
+  });
+
+  // Example: buttons inside popup that act on choices (data-popup-action)
+  document.querySelectorAll('[data-popup-action]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const action = e.target.dataset.popupAction;
+      const popupEl = e.target.closest('.popup');
+      if (popupEl) {
+        popupEl.dispatchEvent(new CustomEvent('popup:action', { detail: { action } }));
+      }
+    });
+  });
+
+  // Accessibility: allow focusing the container to receive keyboard events
+  videoContainer.addEventListener('click', () => videoContainer.focus());
+
+  // Optional: keyboard space also toggles when not focused on input
+  window.addEventListener('keydown', (e) => {
+    const tag = document.activeElement && document.activeElement.tagName.toLowerCase();
+    if (['input','textarea'].includes(tag)) return;
+    if (e.code === 'Space'){
+      e.preventDefault(); togglePlay();
+    }
+  });
+
+  // === Auto-hide controls (works with multiple popups) ===
+  (function(){
+    const controlsEl = document.querySelector('.controls');
+    if (!controlsEl) return;
+
+    let hideTimeout = null;
+    const HIDE_DELAY = 3000; // ms
+
+    function showControls() {
+      controlsEl.classList.remove('hidden');
+      controlsEl.classList.add('visible');
+      resetHideTimer();
+    }
+
+    function hideControls() {
+      // treat "paused" as not hiding; for YT we check player state
+      const isPaused = !(YTPlayer && YTPlayer.getPlayerState && YTPlayer.getPlayerState() === YT.PlayerState.PLAYING);
+      const popupVisible = isAnyPopupVisible();
+      if (isPaused || popupVisible) return;
+      controlsEl.classList.remove('visible');
+      controlsEl.classList.add('hidden');
+    }
+
+    function resetHideTimer() {
+      if (hideTimeout) clearTimeout(hideTimeout);
+      hideTimeout = setTimeout(() => hideControls(), HIDE_DELAY);
+    }
+
+    videoContainer.addEventListener('mousemove', showControls);
+    videoContainer.addEventListener('touchstart', (e) => { showControls(); });
+    videoContainer.addEventListener('click', showControls);
+    window.addEventListener('keydown', (e) => {
+      const tag = document.activeElement && document.activeElement.tagName.toLowerCase();
+      if (!['input','textarea'].includes(tag)) showControls();
+    });
+
+    videoContainer.addEventListener('mouseleave', () => { resetHideTimer(); });
+
+    controlsEl.addEventListener('mouseenter', () => {
+      if (hideTimeout) clearTimeout(hideTimeout);
+      controlsEl.classList.remove('hidden');
+      controlsEl.classList.add('visible');
+    });
+    controlsEl.addEventListener('mouseleave', () => { resetHideTimer(); });
+
+    // show controls initially
+    showControls();
+  })();
+
+  // Expose popups metadata for debugging (optional)
+  window.__popups = popups;
+
+})();
+</script>
+</body>
+</html>
