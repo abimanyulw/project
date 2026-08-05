@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Abim's Core Values</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Space Grotesk', 'sans-serif'] }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* --- Tile --- */
+        .tile {
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            text-transform: uppercase;
+            border: 2px solid #d4d4d4;
+            color: #1a1a1a;
+        }
+        .tile.filled { border-color: #8e2657; }
+        .tile.correct { background: #6aaa64; border-color: #6aaa64; color: #fff; }
+        .tile.present { background: #c9b458; border-color: #c9b458; color: #fff; }
+        .tile.absent  { background: #787c7e; border-color: #787c7e; color: #fff; }
+
+        .tile.pop {
+            animation: pop 0.1s ease;
+        }
+        @keyframes pop {
+            0%   { transform: scale(1); }
+            50%  { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+
+        .tile.flip {
+            animation: flip 0.5s ease forwards;
+        }
+        @keyframes flip {
+            0%   { transform: rotateX(0deg); }
+            50%  { transform: rotateX(90deg); }
+            100% { transform: rotateX(0deg); }
+        }
+
+        .tile.bounce {
+            animation: bounce 0.6s ease;
+        }
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            30%  { transform: translateY(-18px); }
+            50%  { transform: translateY(-6px); }
+            70%  { transform: translateY(-3px); }
+        }
+
+        .shake {
+            animation: shake 0.35s ease;
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%  { transform: translateX(-6px); }
+            40%  { transform: translateX(6px); }
+            60%  { transform: translateX(-3px); }
+            80%  { transform: translateX(3px); }
+        }
+
+        /* --- Keyboard --- */
+        .key {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            text-transform: uppercase;
+            border-radius: 6px;
+            cursor: pointer;
+            user-select: none;
+            -webkit-user-select: none;
+            background: #e5e5e5;
+            color: #1a1a1a;
+            transition: background 0.2s, color 0.2s, transform 0.08s;
+        }
+        .key:active { transform: scale(0.9); }
+        .key.correct { background: #6aaa64; color: #fff; }
+        .key.present { background: #c9b458; color: #fff; }
+        .key.absent  { background: #e5e5e5; color: #a3a3a3; }
+
+        /* --- Toast --- */
+        .toast-anim {
+            animation: toastIn 0.2s ease, toastOut 0.25s ease 1.4s forwards;
+        }
+        @keyframes toastIn  { from { opacity:0; transform:translateY(-8px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes toastOut { from { opacity:1; } to { opacity:0; } }
+
+        /* --- Overlay --- */
+        .overlay-fade { animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+
+        #ov-btn:hover { filter: brightness(0.88); }
+    </style>
+</head>
+
+<body class="bg-white min-h-screen min-h-[100dvh] flex flex-col items-center overflow-hidden select-none">
+
+    <!-- Toast -->
+    <div id="toast" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 pointer-events-none"></div>
+
+    <!-- Header -->
+    <header class="w-full text-center pt-5 pb-1 px-3 shrink-0">
+        <h1 class="text-2xl sm:text-3xl font-bold tracking-tight" style="color:#8e2657">
+            Abim's Core Values
+        </h1>
+        <p id="level-label" class="text-sm font-medium mt-1" style="color:#b06880"></p>
+    </header>
+
+    <!-- Grid -->
+    <main class="flex-1 flex items-center justify-center w-full px-3 py-2">
+        <div id="grid" class="w-full" style="perspective:600px"></div>
+    </main>
+
+    <!-- Win / Lose Overlay -->
+    <div id="overlay" class="hidden fixed inset-0 z-40 flex items-center justify-center" style="background:rgba(255,255,255,0.93)">
+        <div class="overlay-fade text-center px-8 max-w-xs">
+            <div id="ov-icon" class="text-5xl mb-4" style="color:#8e2657"></div>
+            <h2 id="ov-title" class="text-2xl font-bold mb-2" style="color:#8e2657"></h2>
+            <p id="ov-text" class="text-sm mb-7" style="color:#737373"></p>
+            <button id="ov-btn" onclick="onOverlayBtn()" class="font-semibold px-8 py-3 rounded-lg text-white transition-all" style="background:#8e2657"></button>
+        </div>
+    </div>
+
+    <!-- Keyboard -->
+    <footer class="w-full px-1.5 pb-3 pt-1 shrink-0">
+        <div id="keyboard" class="w-full mx-auto" style="max-width:500px"></div>
+    </footer>
+
+<script>
+/* ================================================
+   DATA
+   ================================================ */
+const LEVELS = [
+    { word: 'GROWTH',     attempts: 6 },
+    { word: 'IMPACT',     attempts: 6 },
+    { word: 'EXCELLENCE', attempts: 6 }
+];
+
+/* ================================================
+   STATE
+   ================================================ */
+let lvl = 0, row = 0, col = 0, guess = '', over = false, busy = false;
+let kb = {}; // keyboard letter → state
+
+const L   = () => LEVELS[lvl];
+const wLen = () => L().word.length;
+const maxR = () => L().attempts;
+const $t   = (r, c) => document.getElementById('t' + r + c);
+
+/* ================================================
+   INIT
+   ================================================ */
+function initLevel() {
+    row = 0; col = 0; guess = ''; over = false; busy = false; kb = {};
+    buildGrid();
+    buildKeyboard();
+    document.getElementById('level-label').textContent =
+        'Level ' + (lvl + 1) + ' of 3';
+}
+
+/* ================================================
+   GRID
+   ================================================ */
+function buildGrid() {
+    const g = document.getElementById('grid');
+    const n = wLen(), m = maxR();
+    g.style.maxWidth = n <= 6 ? '340px' : '420px';
+    const fs  = n <= 6 ? 'text-xl sm:text-2xl' : 'text-sm sm:text-lg';
+    const gap = n <= 6 ? 'gap-1' : 'gap-[3px]';
+    let h = '<div class="grid ' + gap + '" style="grid-template-columns:repeat(' + n + ',1fr)">';
+    for (let r = 0; r < m; r++)
+        for (let c = 0; c < n; c++)
+            h += '<div id="t' + r + c + '" class="tile ' + fs + '"></div>';
+    g.innerHTML = h + '</div>';
+}
+
+/* ================================================
+   KEYBOARD
+   ================================================ */
+function buildKeyboard() {
+    const rows = [
+        'QWERTYUIOP'.split(''),
+        'ASDFGHJKL'.split(''),
+        ['ENTER', ...'ZXCVBNM'.split(''), 'DEL']
+    ];
+    const el = document.getElementById('keyboard');
+    let h = '';
+    rows.forEach(r => {
+        h += '<div class="flex justify-center gap-[5px] mb-[5px]">';
+        r.forEach(k => {
+            if (k === 'ENTER')
+                h += '<div class="key text-[11px] h-12 px-2" style="min-width:50px" data-k="ENTER">' + k + '</div>';
+            else if (k === 'DEL')
+                h += '<div class="key text-lg h-12" style="min-width:36px" data-k="BACK">\u232B</div>';
+            else
+                h += '<div class="key text-sm h-12 flex-1" style="max-width:44px" id="k-' + k + '" data-k="' + k + '">' + k + '</div>';
+        });
+        h += '</div>';
+    });
+    el.innerHTML = h;
+    el.onclick = e => {
+        const t = e.target.closest('[data-k]');
+        if (t) handleKey(t.dataset.k);
+    };
+}
+
+/* ================================================
+   INPUT
+   ================================================ */
+function handleKey(k) {
+    if (over || busy) return;
+    if (k === 'BACK') {
+        if (col > 0) {
+            col--; guess = guess.slice(0, -1);
+            const t = $t(row, col);
+            t.textContent = ''; t.classList.remove('filled');
+        }
+    } else if (k === 'ENTER') {
+        submit();
+    } else if (/^[A-Z]$/.test(k) && col < wLen()) {
+        const t = $t(row, col);
+        t.textContent = k; t.classList.add('filled');
+        guess += k; col++;
+        /* pop animasi */
+        t.classList.remove('pop');
+        void t.offsetWidth;
+        t.classList.add('pop');
+    }
+}
+
+document.addEventListener('keydown', e => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === 'Enter')    handleKey('ENTER');
+    else if (e.key === 'Backspace') handleKey('BACK');
+    else if (/^[a-zA-Z]$/.test(e.key)) handleKey(e.key.toUpperCase());
+});
+
+/* ================================================
+   DICTIONARY API
+   ================================================ */
+async function isValidWord(w) {
+    try {
+        const r = await fetch('https://api.dictionaryapi.dev/api/v2/entries/en/' + w.toLowerCase());
+        return r.ok;
+    } catch { return false; }
+}
+
+/* ================================================
+   SUBMIT
+   ================================================ */
+async function submit() {
+    const n = wLen(), answer = L().word;
+
+    if (guess.length < n) {
+        toast('Not enough letters');
+        shakeRow(row); return;
+    }
+
+    busy = true;
+    const valid = await isValidWord(guess);
+    if (!valid) {
+        toast('Not a valid word');
+        shakeRow(row);
+        busy = false; return;
+    }
+
+    /* evaluasi */
+    const states = evaluate(guess, answer);
+
+    /* reveal tile satu per satu */
+    await revealRow(row, states, n);
+
+    /* update keyboard */
+    syncKB(guess, states);
+
+    /* menang? */
+    if (guess === answer) {
+        over = true; busy = false;
+        for (let c = 0; c < n; c++)
+            setTimeout(() => $t(row, c).classList.add('bounce'), c * 80);
+        setTimeout(() => {
+            if (lvl < LEVELS.length - 1)
+                showOverlay('\u2713', 'Well Done!', 'You found \u201C' + answer + '\u201D', 'Next Level');
+            else
+                showOverlay('\u2605', 'Congratulations!', "You've discovered all of Abim's Core Values!", 'Play Again');
+        }, n * 80 + 600);
+        return;
+    }
+
+    row++; guess = ''; col = 0; busy = false;
+
+    /* kalah? */
+    if (row >= maxR()) {
+        over = true;
+        setTimeout(() =>
+            showOverlay('\u2717', 'The word was \u201C' + answer + '\u201D', 'Better luck next time', 'Try Again'),
+        350);
+    }
+}
+
+/* ================================================
+   EVALUATE (Wordle logic)
+   ================================================ */
+function evaluate(g, a) {
+    const s = Array(g.length).fill('absent');
+    const aa = a.split(''), gg = g.split('');
+    /* pass 1: correct */
+    for (let i = 0; i < gg.length; i++) {
+        if (gg[i] === aa[i]) { s[i] = 'correct'; aa[i] = gg[i] = null; }
+    }
+    /* pass 2: present */
+    for (let i = 0; i < gg.length; i++) {
+        if (gg[i] == null) continue;
+        const j = aa.indexOf(gg[i]);
+        if (j !== -1) { s[i] = 'present'; aa[j] = null; }
+    }
+    return s;
+}
+
+/* ================================================
+   REVEAL ANIMATION
+   ================================================ */
+function revealRow(r, states, n) {
+    return new Promise(res => {
+        let done = 0;
+        for (let c = 0; c < n; c++) {
+            setTimeout(() => {
+                const t = $t(r, c);
+                t.classList.add('flip');
+                /* ubah warna di tengah flip (90deg, tak terlihat) */
+                setTimeout(() => {
+                    t.classList.remove('filled');
+                    t.classList.add(states[c]);
+                    if (++done === n) res();
+                }, 250);
+            }, c * 180);
+        }
+    });
+}
+
+/* ================================================
+   KEYBOARD SYNC
+   ================================================ */
+function syncKB(g, s) {
+    const prio = { correct: 3, present: 2, absent: 1 };
+    for (let i = 0; i < g.length; i++) {
+        const l = g[i], ns = s[i], cs = kb[l];
+        if (!cs || prio[ns] > prio[cs]) {
+            kb[l] = ns;
+            const el = document.getElementById('k-' + l);
+            if (el) {
+                el.classList.remove('correct', 'present', 'absent');
+                el.classList.add(ns);
+            }
+        }
+    }
+}
+
+/* ================================================
+   SHAKE ROW
+   ================================================ */
+function shakeRow(r) {
+    const n = wLen();
+    for (let c = 0; c < n; c++) {
+        const t = $t(r, c);
+        t.classList.add('shake');
+        setTimeout(() => t.classList.remove('shake'), 400);
+    }
+}
+
+/* ================================================
+   TOAST
+   ================================================ */
+function toast(msg) {
+    const el = document.getElementById('toast');
+    el.innerHTML = '<div class="toast-anim px-5 py-2.5 rounded-lg font-semibold text-sm text-white shadow-lg" style="background:#8e2657">' + msg + '</div>';
+    setTimeout(() => { el.innerHTML = ''; }, 1800);
+}
+
+/* ================================================
+   OVERLAY
+   ================================================ */
+function showOverlay(icon, title, text, btn) {
+    document.getElementById('ov-icon').textContent  = icon;
+    document.getElementById('ov-title').textContent = title;
+    document.getElementById('ov-text').textContent  = text;
+    document.getElementById('ov-btn').textContent   = btn;
+    document.getElementById('overlay').classList.remove('hidden');
+}
+
+function onOverlayBtn() {
+    document.getElementById('overlay').classList.add('hidden');
+    const b = document.getElementById('ov-btn').textContent;
+    if (b === 'Next Level') { lvl++; initLevel(); }
+    else                    { lvl = 0; initLevel(); }
+}
+
+/* ================================================
+   START
+   ================================================ */
+initLevel();
+</script>
+</body>
+</html>
